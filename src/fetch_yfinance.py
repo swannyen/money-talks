@@ -1,6 +1,7 @@
 import yfinance as yf
 
-def get_current_prices(tickers, digits = 5) -> dict:
+
+def get_current_prices(tickers, digits=5) -> dict:
     """
     Given a list of ticker symbols, return a dict of {ticker: current_price}.
     Uses Yahoo Finance via the yfinance library.
@@ -16,7 +17,7 @@ def get_current_prices(tickers, digits = 5) -> dict:
         progress=False,
         group_by="ticker",
         auto_adjust=False,
-        prepost=False
+        prepost=False,
     )
 
     prices = {}
