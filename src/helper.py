@@ -68,6 +68,7 @@ def prepare_transactions_df(transactions: pd.DataFrame) -> pd.DataFrame:
     print(df["Date"])
     return df
 
+
 def compute_holdings_wac(df: pd.DataFrame) -> pd.DataFrame:
     """
     Compute holdings using Weighted Average Cost (WAC) method.
@@ -81,8 +82,8 @@ def compute_holdings_wac(df: pd.DataFrame) -> pd.DataFrame:
     for key, group in df.groupby(group_cols, sort=["Date"]):
         portfolio, ticker, asset_name, asset_class, currency = key
         shares = 0
-        cost_basis_base = 0.0       # remaining cost basis in base currency
-        net_cashflow_base = 0.0     # buys - sells (outflow - inflow), can go negative
+        cost_basis_base = 0.0  # remaining cost basis in base currency
+        net_cashflow_base = 0.0  # buys - sells (outflow - inflow), can go negative
 
         for _, row in group.iterrows():
             action = row["Action"]
@@ -102,7 +103,7 @@ def compute_holdings_wac(df: pd.DataFrame) -> pd.DataFrame:
                 avg_cost = cost_basis_base / shares if shares > 0 else 0.0
                 cost_basis_base -= qty * avg_cost
                 shares -= qty
-                net_cashflow_base -= val_base 
+                net_cashflow_base -= val_base
             else:
                 # Dividend/Fee/etc excluded from holdings basis by default.
                 # You can incorporate fees into cost basis if desired.
@@ -114,18 +115,22 @@ def compute_holdings_wac(df: pd.DataFrame) -> pd.DataFrame:
             cost_basis_base = 0.0
 
         if shares != 0:
-            rows.append({
-                "Portfolio": portfolio,
-                "Ticker": ticker,
-                "Asset Name": asset_name,
-                "Asset Class": asset_class,
-                "Currency": currency,
-                "Net Quantity": shares,
-                "Cost Basis Remaining (base)": cost_basis_base,
-                "Avg Cost (base)": (cost_basis_base / shares) if shares != 0 else np.nan,
-                "Net Cashflow (base)": net_cashflow_base,
-                "House Money (base)": max(-net_cashflow_base, 0.0),
-            })
+            rows.append(
+                {
+                    "Portfolio": portfolio,
+                    "Ticker": ticker,
+                    "Asset Name": asset_name,
+                    "Asset Class": asset_class,
+                    "Currency": currency,
+                    "Net Quantity": shares,
+                    "Cost Basis Remaining (base)": cost_basis_base,
+                    "Avg Cost (base)": (
+                        (cost_basis_base / shares) if shares != 0 else np.nan
+                    ),
+                    "Net Cashflow (base)": net_cashflow_base,
+                    "House Money (base)": max(-net_cashflow_base, 0.0),
+                }
+            )
 
     return pd.DataFrame(rows)
 
@@ -133,16 +138,18 @@ def compute_holdings_wac(df: pd.DataFrame) -> pd.DataFrame:
 def attach_current_prices_values(holdings: pd.DataFrame) -> pd.DataFrame:
     if holdings.empty:
         return holdings
-    
+
     unique_tickers = holdings["Ticker"].dropna().unique()
     price_map = get_current_prices(unique_tickers, 3)
     if price_map is None:
         raise TypeError(
             "get_ticker_price(unique_tickers) returned None; expected dict-like {ticker: price}."
         )
-    
+
     holdings["Current Price Per Unit"] = holdings["Ticker"].map(price_map)
-    holdings["Current Value"] = holdings["Net Quantity"] * holdings["Current Price Per Unit"]
+    holdings["Current Value"] = (
+        holdings["Net Quantity"] * holdings["Current Price Per Unit"]
+    )
 
     # FX Conversion
     unique_currencies = holdings["Currency"].dropna().unique()
@@ -164,9 +171,10 @@ def attach_current_prices_values(holdings: pd.DataFrame) -> pd.DataFrame:
     holdings["Unrealised P/L % (base)"] = np.where(
         holdings["Cost Basis Remaining (base)"] > 0,
         holdings["Unrealised P/L (base)"] / holdings["Cost Basis Remaining (base)"],
-        np.nan
+        np.nan,
     )
     return holdings
+
 
 def attach_portfolio_weights(holdings: pd.DataFrame) -> pd.DataFrame:
     holdings["Portfolio Total Value (base)"] = holdings.groupby("Portfolio")[
@@ -175,9 +183,10 @@ def attach_portfolio_weights(holdings: pd.DataFrame) -> pd.DataFrame:
     holdings["Portfolio Weight (base)"] = np.where(
         holdings["Portfolio Total Value (base)"] > 0,
         holdings["Current Value (base)"] / holdings["Portfolio Total Value (base)"],
-        np.nan
+        np.nan,
     )
     return holdings
+
 
 def finalise_holdings(holdings: pd.DataFrame) -> pd.DataFrame:
     if holdings.empty:
@@ -204,10 +213,12 @@ def finalise_holdings(holdings: pd.DataFrame) -> pd.DataFrame:
 
     # Optional: sort nicely
     holdings = holdings.sort_values(
-        ["Portfolio", "Portfolio Weight (base)", "Ticker"], ascending=[True, False, True]
+        ["Portfolio", "Portfolio Weight (base)", "Ticker"],
+        ascending=[True, False, True],
     )
 
     return holdings
+
 
 def generate_holdings(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -224,3 +235,68 @@ def generate_holdings(df: pd.DataFrame) -> pd.DataFrame:
     holdings = finalise_holdings(holdings)
 
     return holdings
+
+
+def generate_dividends(transactions: pd.DataFrame) -> pd.DataFrame:
+    dividends_df = transactions[transactions["Action"] == "DIVIDEND"].copy()
+    dividends_df = dividends_df.dropna(subset=["Date", "Value (base)"])
+
+    # Extract year
+    dividends_df["Date"] = pd.to_datetime(dividends_df["Date"], errors="coerce")
+    dividends_df["Year"] = dividends_df["Date"].dt.year
+
+    dividends_df["Value (base)"] = pd.to_numeric(
+        dividends_df["Value (base)"], errors="coerce"
+    )
+
+    # Aggregate
+    dividends_summary = (
+        dividends_df.groupby(
+            ["Year", "Portfolio", "Ticker", "Asset Name"], as_index=False
+        )["Value (base)"]
+        .sum()
+        .rename(columns={"Value (base)": "Total Dividends"})
+    )
+
+    # Average monthly dividend across full year
+    dividends_summary["Average Monthly Dividend"] = (
+        dividends_summary["Total Dividends"] / 12
+    )
+
+    # Optional rounding
+    dividends_summary["Total Dividends"] = dividends_summary["Total Dividends"].round(4)
+    dividends_summary["Average Monthly Dividend"] = dividends_summary[
+        "Average Monthly Dividend"
+    ].round(4)
+
+    # Sort nicely
+    dividends_summary = dividends_summary.sort_values(
+        ["Year", "Portfolio", "Ticker"]
+    ).reset_index(drop=True)
+
+    return dividends_summary
+
+
+def generate_portfolio_dividends(dividends_df: pd.DataFrame) -> pd.DataFrame:
+    portfolio_dividends = (
+        dividends_df.groupby(["Year", "Portfolio"], as_index=False)["Total Dividends"]
+        .sum()
+        .rename(columns={"Total Dividends": "Portfolio Total Dividends"})
+    )
+    # Average monthly dividend across full year
+    portfolio_dividends["Average Monthly Dividend"] = (
+        portfolio_dividends["Portfolio Total Dividends"] / 12
+    )
+
+    portfolio_dividends["Portfolio Total Dividends"] = portfolio_dividends[
+        "Portfolio Total Dividends"
+    ].round(4)
+    portfolio_dividends["Average Monthly Dividend"] = portfolio_dividends[
+        "Average Monthly Dividend"
+    ].round(4)
+
+    portfolio_dividends = portfolio_dividends.sort_values(
+        ["Year", "Portfolio"]
+    ).reset_index(drop=True)
+
+    return portfolio_dividends

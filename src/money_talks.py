@@ -1,7 +1,12 @@
 import pandas as pd
 from logging import Logger
 from src.models.transaction import Transaction
-from src.helper import create_new_transaction, generate_holdings
+from src.helper import (
+    create_new_transaction,
+    generate_holdings,
+    generate_dividends,
+    generate_portfolio_dividends,
+)
 
 
 class MoneyTalks:
@@ -10,12 +15,16 @@ class MoneyTalks:
     ):
         self.transactions_sheet = "Transactions"
         self.holdings_sheet = "Holdings"
+        self.dividends_sheet = "Dividends"
+        self.portfolio_dividends_sheet = "Portfolio Dividends"
         self.excel_filepath = excel_filepath
         self.logger = Logger("MoneyTalks Pipeline")
         self.transaction_df = pd.read_excel(
             self.excel_filepath, sheet_name=self.transactions_sheet
         )
         self.holdings_df = None
+        self.dividends_df = None
+        self.portfolio_dividend_summary = None
 
     def add_transaction(self, transaction: Transaction) -> None:
         try:
@@ -33,12 +42,32 @@ class MoneyTalks:
         self.holdings_df = generate_holdings(self.transaction_df)
         self.logger.info("Holdings sheet generated successfully.")
         return self.holdings_df
-    
+
+    def get_dividends_sheet(self):
+        self.dividends_df = generate_dividends(self.transaction_df)
+        self.logger.info("Dividends sheet generated successfully.")
+        return self.dividends_df
+
+    def get_portfolio_dividends(self):
+        if self.dividends_df is None:
+            self.get_dividends_sheet()
+        self.logger.info("Portfolio Dividends sheet generated successfully.")
+        self.portfolio_dividend_summary = generate_portfolio_dividends(
+            self.dividends_df
+        )
+        return self.portfolio_dividend_summary
+
     def save_sheets(self):
         with pd.ExcelWriter(self.excel_filepath) as writer:
             self.transaction_df.to_excel(writer, sheet_name=self.transactions_sheet)
             if self.holdings_df is not None:
                 self.holdings_df.to_excel(writer, sheet_name=self.holdings_sheet)
+            if self.dividends_df is not None:
+                self.dividends_df.to_excel(writer, sheet_name=self.dividends_sheet)
+            if self.portfolio_dividend_summary is not None:
+                self.portfolio_dividend_summary.to_excel(
+                    writer, sheet_name=self.portfolio_dividends_sheet
+                )
 
     def get_portfolio_summary(self):
         holdings_df = self.get_holdings_sheet()
