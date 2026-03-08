@@ -58,14 +58,12 @@ def prepare_transactions_df(transactions: pd.DataFrame) -> pd.DataFrame:
     df["Ticker"] = df["Ticker"].str.strip()
     df["Currency"] = df["Currency"].str.upper().str.strip()
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-    print(df["Date"])
     df["Quantity"] = pd.to_numeric(df["Quantity"], errors="coerce")
     df["Value"] = pd.to_numeric(df["Value"], errors="coerce")
     df["Value (base)"] = pd.to_numeric(df["Value (base)"], errors="coerce")
 
     # Sort for stable WAC calc
     df = df.sort_values(["Portfolio", "Ticker", "Currency", "Date"])
-    print(df["Date"])
     return df
 
 
@@ -300,3 +298,45 @@ def generate_portfolio_dividends(dividends_df: pd.DataFrame) -> pd.DataFrame:
     ).reset_index(drop=True)
 
     return portfolio_dividends
+
+
+def generate_portfolio_summary(holdings_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Generate portfolio-level summary from holdings sheet.
+    """
+
+    # Aggregate per portfolio
+    summary = holdings_df.groupby("Portfolio", as_index=False).agg(
+        Total_Value_Base=("Current Value (base)", "sum"),
+        Total_Cost_Base=("Cost Basis Remaining (base)", "sum"),
+        Unrealised_PL_Base=("Unrealised P/L (base)", "sum"),
+    )
+
+    # P/L %
+    summary["PL_%"] = np.where(
+        summary["Total_Cost_Base"] > 0,
+        summary["Unrealised_PL_Base"] / summary["Total_Cost_Base"],
+        np.nan,
+    )
+
+    # % of total net worth
+    total_networth = summary["Total_Value_Base"].sum()
+
+    summary["%_of_Total_NetWorth"] = np.where(
+        total_networth > 0,
+        summary["Total_Value_Base"] / total_networth,
+        np.nan,
+    )
+
+    # Formatting
+    summary["Total_Value_Base"] = summary["Total_Value_Base"].round(4)
+    summary["Total_Cost_Base"] = summary["Total_Cost_Base"].round(4)
+    summary["Unrealised_PL_Base"] = summary["Unrealised_PL_Base"].round(4)
+    summary["PL_%"] = summary["PL_%"].round(4)
+    summary["%_of_Total_NetWorth"] = summary["%_of_Total_NetWorth"].round(4)
+
+    summary = summary.sort_values("Total_Value_Base", ascending=False).reset_index(
+        drop=True
+    )
+
+    return summary

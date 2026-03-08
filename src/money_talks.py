@@ -6,6 +6,7 @@ from src.helper import (
     generate_holdings,
     generate_dividends,
     generate_portfolio_dividends,
+    generate_portfolio_summary,
 )
 
 
@@ -17,6 +18,7 @@ class MoneyTalks:
         self.holdings_sheet = "Holdings"
         self.dividends_sheet = "Dividends"
         self.portfolio_dividends_sheet = "Portfolio Dividends"
+        self.portfolio_summary_sheet = "Portfolio Summary"
         self.excel_filepath = excel_filepath
         self.logger = Logger("MoneyTalks Pipeline")
         self.transaction_df = pd.read_excel(
@@ -25,6 +27,7 @@ class MoneyTalks:
         self.holdings_df = None
         self.dividends_df = None
         self.portfolio_dividend_summary = None
+        self.portfolio_summary = None
 
     def add_transaction(self, transaction: Transaction) -> None:
         try:
@@ -57,6 +60,14 @@ class MoneyTalks:
         )
         return self.portfolio_dividend_summary
 
+    def get_portfolio_summary(self):
+        if self.holdings_df is None:
+            self.get_holdings_sheet()
+        self.logger.info("Portfolio Summary generated successfully.")
+        summary = generate_portfolio_summary(self.holdings_df)
+        self.portfolio_summary = summary
+        return summary
+
     def save_sheets(self):
         with pd.ExcelWriter(self.excel_filepath) as writer:
             self.transaction_df.to_excel(writer, sheet_name=self.transactions_sheet)
@@ -68,13 +79,7 @@ class MoneyTalks:
                 self.portfolio_dividend_summary.to_excel(
                     writer, sheet_name=self.portfolio_dividends_sheet
                 )
-
-    def get_portfolio_summary(self):
-        holdings_df = self.get_holdings_sheet()
-        summary = holdings_df.groupby("Portfolio").agg(
-            {
-                "Current Value (base)": "sum",
-                "Unrealised P/L (base)": "sum",
-            }
-        )
-        return summary
+            if self.portfolio_summary is not None:
+                self.portfolio_summary.to_excel(
+                    writer, sheet_name=self.portfolio_summary_sheet
+                )
