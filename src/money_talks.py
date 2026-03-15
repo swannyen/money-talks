@@ -8,6 +8,7 @@ from src.helper import (
     generate_portfolio_dividends,
     generate_portfolio_summary,
     generate_dividend_recovery_sheet,
+    generate_realised_pl_sheet
 )
 
 
@@ -21,6 +22,7 @@ class MoneyTalks:
         self.portfolio_dividends_sheet = "Portfolio Dividends"
         self.portfolio_summary_sheet = "Portfolio Summary"
         self.dividend_recovery_sheet = "Dividend Recovery"
+        self.realised_pl_sheet = "Realised PL"
         self.excel_filepath = excel_filepath
         self.logger = Logger("MoneyTalks Pipeline")
         self.transaction_df = pd.read_excel(
@@ -31,6 +33,7 @@ class MoneyTalks:
         self.portfolio_dividend_summary = None
         self.portfolio_summary = None
         self.recovery_summary = None
+        self.realised_pl = None
 
     def add_transaction(self, transaction: Transaction) -> None:
         try:
@@ -83,6 +86,14 @@ class MoneyTalks:
         self.logger.info("Dividend Recovery sheet generated successfully.")
         return recovery_summary
 
+    def get_realised_pl_sheet(self):
+        if self.transaction_df is None:
+            raise ValueError("No transaction data available.")
+        realised_pl_sheet = generate_realised_pl_sheet(self.transaction_df)
+        self.realised_pl = realised_pl_sheet
+        self.logger.info("Realised P/L sheet generated successfully.")
+        return realised_pl_sheet
+
     def save_sheets(self):
         sheet_df_dict = {
             self.transactions_sheet: self.transaction_df,
@@ -91,6 +102,7 @@ class MoneyTalks:
             self.portfolio_dividends_sheet: self.portfolio_dividend_summary,
             self.portfolio_summary_sheet: self.portfolio_summary,
             self.dividend_recovery_sheet: self.recovery_summary,
+            self.realised_pl_sheet: self.realised_pl
         }
         with pd.ExcelWriter(self.excel_filepath) as writer:
             for sheet_name, df in sheet_df_dict.items():

@@ -66,28 +66,35 @@ def prepare_transactions_df(transactions: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def compute_holdings_wac(df: pd.DataFrame) -> pd.DataFrame:
+def process_transactions_wac(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Compute holdings using Weighted Average Cost (WAC) method.
-    Inputs:
-    - df: pd.DataFrame of transactions sheet
-    Returns:
-    - pd.DataFrame: Holdings dataframe grouped by Portfolio and Ticker
+    Process transactions using Weighted Average Cost (WAC).
+
+    Return:
+    - holdings_df : pd.DataFrame (Open positions only)
+    - realised_pl_df : pd.DataFrame (One row per SELL transaction)
     """
     group_cols = ["Portfolio", "Ticker", "Asset Name", "Asset Class", "Currency"]
-    rows = []
+
+    holdings_rows = []
+    realised_rows = []
+
     for key, group in df.groupby(group_cols, sort=False):
         portfolio, ticker, asset_name, asset_class, currency = key
+
         shares = 0
-        cost_basis_base = 0.0  # remaining cost basis in base currency
-        net_cashflow_base = 0.0  # buys - sells (outflow - inflow), can go negative
+        cost_basis_base = 0.0
+        net_cashflow_base = 0.0
 
         for _, row in group.iterrows():
             action = row["Action"]
             qty = row["Quantity"]
             val_base = row["Value (base)"]
+
             if pd.isna(qty) or pd.isna(val_base):
                 continue
+
+            val_base = float(val_base)
 
             if action == "BUY":
                 shares += qty
@@ -95,22 +102,49 @@ def compute_holdings_wac(df: pd.DataFrame) -> pd.DataFrame:
                 net_cashflow_base += val_base
 
             elif action == "SELL":
+                if shares <= 0:
+                    continue
+
                 avg_cost = cost_basis_base / shares if shares > 0 else 0.0
-                cost_basis_base -= qty * avg_cost
+                cost_of_shares_sold = qty * avg_cost
+                realised_pl = val_base - cost_of_shares_sold
+                realised_pl_pct = (
+                    realised_pl / cost_of_shares_sold
+                    if cost_of_shares_sold > 0 else np.nan
+                )
+
+                realised_rows.append(
+                    {
+                        "Date": row["Date"],
+                        "Portfolio": portfolio,
+                        "Ticker": ticker,
+                        "Asset Name": asset_name,
+                        "Asset Class": asset_class,
+                        "Currency": currency,
+                        "Quantity Sold": qty,
+                        "Sell Value (base)": val_base,
+                        "Avg Cost Per Unit Before Sell (base)": avg_cost,
+                        "Cost of Shares Sold (base)": cost_of_shares_sold,
+                        "Realised P/L (base)": realised_pl,
+                        "Realised P/L % (base)": realised_pl_pct,
+                    }
+                )
+
+                cost_basis_base -= cost_of_shares_sold
                 shares -= qty
                 net_cashflow_base -= val_base
+
             else:
-                # Dividend/Fee/etc excluded from holdings basis by default.
-                # You can incorporate fees into cost basis if desired.
                 continue
-        # floating-point cleanup
+
+        # floating point cleanup
         if shares < 1e-12:
-            shares = 0
+            shares = 0.0
         if cost_basis_base < 1e-8:
             cost_basis_base = 0.0
 
         if shares != 0:
-            rows.append(
+            holdings_rows.append(
                 {
                     "Portfolio": portfolio,
                     "Ticker": ticker,
@@ -120,14 +154,17 @@ def compute_holdings_wac(df: pd.DataFrame) -> pd.DataFrame:
                     "Net Quantity": shares,
                     "Cost Basis Remaining (base)": cost_basis_base,
                     "Avg Cost (base)": (
-                        (cost_basis_base / shares) if shares != 0 else np.nan
+                        cost_basis_base / shares if shares > 0 else np.nan
                     ),
                     "Net Cashflow (base)": net_cashflow_base,
                     "House Money (base)": max(-net_cashflow_base, 0.0),
                 }
             )
 
-    return pd.DataFrame(rows)
+    holdings_df = pd.DataFrame(holdings_rows)
+    realised_pl_df = pd.DataFrame(realised_rows)
+
+    return holdings_df, realised_pl_df
 
 
 def attach_current_prices_values(holdings: pd.DataFrame) -> pd.DataFrame:
@@ -210,7 +247,7 @@ def finalise_holdings(holdings: pd.DataFrame) -> pd.DataFrame:
     holdings = holdings.sort_values(
         ["Portfolio", "Portfolio Weight (base)", "Ticker"],
         ascending=[True, False, True],
-    )
+    ).reset_index(drop=True)
 
     return holdings
 
@@ -224,7 +261,7 @@ def generate_holdings(df: pd.DataFrame) -> pd.DataFrame:
     - pd.DataFrame: Holdings dataframe grouped by Portfolio and Ticker
     """
     df = prepare_transactions_df(df)
-    holdings = compute_holdings_wac(df)
+    holdings, _ = process_transactions_wac(df)
     holdings = attach_current_prices_values(holdings)
     holdings = attach_portfolio_weights(holdings)
     holdings = finalise_holdings(holdings)
@@ -392,3 +429,36 @@ def generate_dividend_recovery_sheet(
     ).reset_index(drop=True)
 
     return recovery_df
+
+def finalise_realised_pl(realised_pl: pd.DataFrame) -> pd.DataFrame:
+    if realised_pl.empty:
+        return realised_pl
+
+    realised_pl = realised_pl.copy()
+
+    numeric_cols = [
+        "Quantity Sold",
+        "Sell Value (base)",
+        "Avg Cost Per Unit Before Sell (base)",
+        "Cost of Shares Sold (base)",
+        "Realised P/L (base)",
+        "Realised P/L % (base)",
+    ]
+
+    realised_pl[numeric_cols] = realised_pl[numeric_cols].round(4)
+
+    realised_pl = realised_pl.sort_values(
+        ["Date", "Portfolio", "Ticker"]
+    ).reset_index(drop=True)
+
+    return realised_pl
+
+
+def generate_realised_pl_sheet(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Generate realised P/L sheet from transaction dataframe.
+    """
+    df = prepare_transactions_df(df)
+    _, realised_pl = process_transactions_wac(df)
+    realised_pl = finalise_realised_pl(realised_pl)
+    return realised_pl
