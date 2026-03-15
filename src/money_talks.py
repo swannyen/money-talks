@@ -7,6 +7,7 @@ from src.helper import (
     generate_dividends,
     generate_portfolio_dividends,
     generate_portfolio_summary,
+    generate_dividend_recovery_sheet,
 )
 
 
@@ -19,6 +20,7 @@ class MoneyTalks:
         self.dividends_sheet = "Dividends"
         self.portfolio_dividends_sheet = "Portfolio Dividends"
         self.portfolio_summary_sheet = "Portfolio Summary"
+        self.dividend_recovery_sheet = "Dividend Recovery"
         self.excel_filepath = excel_filepath
         self.logger = Logger("MoneyTalks Pipeline")
         self.transaction_df = pd.read_excel(
@@ -28,6 +30,7 @@ class MoneyTalks:
         self.dividends_df = None
         self.portfolio_dividend_summary = None
         self.portfolio_summary = None
+        self.recovery_summary = None
 
     def add_transaction(self, transaction: Transaction) -> None:
         try:
@@ -63,23 +66,34 @@ class MoneyTalks:
     def get_portfolio_summary(self):
         if self.holdings_df is None:
             self.get_holdings_sheet()
-        self.logger.info("Portfolio Summary generated successfully.")
         summary = generate_portfolio_summary(self.holdings_df)
+        self.logger.info("Portfolio Summary generated successfully.")
         self.portfolio_summary = summary
         return summary
 
+    def get_dividend_recovery_summary(self):
+        if self.holdings_df is None:
+            self.get_holdings_sheet()
+        if self.dividends_df is None:
+            self.get_dividends_sheet()
+        recovery_summary = generate_dividend_recovery_sheet(
+            self.holdings_df, self.dividends_df
+        )
+        self.recovery_summary = recovery_summary
+        self.logger.info("Dividend Recovery sheet generated successfully.")
+        return recovery_summary
+
     def save_sheets(self):
+        sheet_df_dict = {
+            self.transactions_sheet: self.transaction_df,
+            self.holdings_sheet: self.holdings_df,
+            self.dividends_sheet: self.dividends_df,
+            self.portfolio_dividends_sheet: self.portfolio_dividend_summary,
+            self.portfolio_summary_sheet: self.portfolio_summary,
+            self.dividend_recovery_sheet: self.recovery_summary,
+        }
         with pd.ExcelWriter(self.excel_filepath) as writer:
-            self.transaction_df.to_excel(writer, sheet_name=self.transactions_sheet)
-            if self.holdings_df is not None:
-                self.holdings_df.to_excel(writer, sheet_name=self.holdings_sheet)
-            if self.dividends_df is not None:
-                self.dividends_df.to_excel(writer, sheet_name=self.dividends_sheet)
-            if self.portfolio_dividend_summary is not None:
-                self.portfolio_dividend_summary.to_excel(
-                    writer, sheet_name=self.portfolio_dividends_sheet
-                )
-            if self.portfolio_summary is not None:
-                self.portfolio_summary.to_excel(
-                    writer, sheet_name=self.portfolio_summary_sheet
-                )
+            for sheet_name, df in sheet_df_dict.items():
+                if df is not None:
+                    df.to_excel(writer, sheet_name=sheet_name, index=False)
+        self.logger.info(f"All sheets saved successfully to {self.excel_filepath}.")

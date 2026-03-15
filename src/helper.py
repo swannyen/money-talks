@@ -52,7 +52,6 @@ def create_new_transaction(transaction: Transaction) -> pd.DataFrame:
 def prepare_transactions_df(transactions: pd.DataFrame) -> pd.DataFrame:
     # Work on a copy to avoid mutating original
     df = transactions.copy()
-
     # Normalize action column (safety)
     df["Action"] = df["Action"].str.upper().str.strip()
     df["Ticker"] = df["Ticker"].str.strip()
@@ -63,7 +62,7 @@ def prepare_transactions_df(transactions: pd.DataFrame) -> pd.DataFrame:
     df["Value (base)"] = pd.to_numeric(df["Value (base)"], errors="coerce")
 
     # Sort for stable WAC calc
-    df = df.sort_values(["Portfolio", "Ticker", "Currency", "Date"])
+    df = df.sort_values(["Portfolio", "Ticker", "Currency", "Date"]).reset_index(drop=True)
     return df
 
 
@@ -77,7 +76,7 @@ def compute_holdings_wac(df: pd.DataFrame) -> pd.DataFrame:
     """
     group_cols = ["Portfolio", "Ticker", "Asset Name", "Asset Class", "Currency"]
     rows = []
-    for key, group in df.groupby(group_cols, sort=["Date"]):
+    for key, group in df.groupby(group_cols, sort=False):
         portfolio, ticker, asset_name, asset_class, currency = key
         shares = 0
         cost_basis_base = 0.0  # remaining cost basis in base currency
@@ -87,8 +86,6 @@ def compute_holdings_wac(df: pd.DataFrame) -> pd.DataFrame:
             action = row["Action"]
             qty = row["Quantity"]
             val_base = row["Value (base)"]
-            if "DIDI" in ticker:
-                print(action, qty, val_base, shares)
             if pd.isna(qty) or pd.isna(val_base):
                 continue
 
@@ -340,3 +337,58 @@ def generate_portfolio_summary(holdings_df: pd.DataFrame) -> pd.DataFrame:
     )
 
     return summary
+
+
+def generate_dividend_recovery_sheet(
+    holdings_df: pd.DataFrame,
+    dividends_asset_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Generate a dividend recovery sheet per portfolio + ticker"""
+
+    # Aggregate just in case either sheet has duplicates
+    holdings_summary = holdings_df.groupby(
+        ["Portfolio", "Ticker", "Asset Name"], as_index=False
+    )["Cost Basis Remaining (base)"].sum()
+
+    dividends_summary = dividends_asset_df.groupby(
+        ["Portfolio", "Ticker", "Asset Name"], as_index=False
+    )["Total Dividends"].sum()
+
+    recovery_df = holdings_summary.merge(
+        dividends_summary,
+        on=["Portfolio", "Ticker", "Asset Name"],
+        how="left",
+    )
+
+    recovery_df["Total Dividends"] = recovery_df["Total Dividends"].fillna(0.0)
+
+    recovery_df["Dividend Recovery %"] = np.where(
+        recovery_df["Cost Basis Remaining (base)"] > 0,
+        recovery_df["Total Dividends"] / recovery_df["Cost Basis Remaining (base)"],
+        np.nan,
+    )
+
+    recovery_df["Net Capital Remaining After Dividends"] = (
+        recovery_df["Cost Basis Remaining (base)"] - recovery_df["Total Dividends"]
+    )
+
+    recovery_df["Paid For?"] = np.where(
+        recovery_df["Net Capital Remaining After Dividends"] <= 0,
+        "Yes",
+        "No",
+    )
+
+    numeric_cols = [
+        "Cost Basis Remaining (base)",
+        "Total Dividends",
+        "Dividend Recovery %",
+        "Net Capital Remaining After Dividends",
+    ]
+    recovery_df[numeric_cols] = recovery_df[numeric_cols].round(4)
+
+    recovery_df = recovery_df.sort_values(
+        ["Portfolio", "Dividend Recovery %", "Ticker"],
+        ascending=[True, False, True],
+    ).reset_index(drop=True)
+
+    return recovery_df
