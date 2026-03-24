@@ -462,3 +462,77 @@ def generate_realised_pl_sheet(df: pd.DataFrame) -> pd.DataFrame:
     _, realised_pl = process_transactions_wac(df)
     realised_pl = finalise_realised_pl(realised_pl)
     return realised_pl
+
+def generate_total_return_sheet(holdings_df: pd.DataFrame, realised_pl_df: pd.DataFrame, dividends_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    using holdings, realised P/L and dividends,
+    Generate total return sheet by combining realised P/L and dividends.
+    """
+    holdings = holdings_df.copy()
+
+    holdings_summary = holdings[
+        [
+            "Portfolio",
+            "Ticker",
+            "Asset Name",
+            "Cost Basis Remaining (base)",
+            "Current Value (base)",
+            "Unrealised P/L (base)",
+            "Net Cashflow (base)",
+        ]
+    ]
+
+    # Aggregate dividends per portfolio + ticker
+    dividends_summary = dividends_df.groupby(
+        ["Portfolio", "Ticker"], as_index=False
+    )["Total Dividends"].sum()
+
+    # Aggregate realised P/L per portfolio + ticker
+    realised_pl_summary = realised_pl_df.groupby(
+        ["Portfolio", "Ticker"], as_index=False
+    )["Realised P/L (base)"].sum()
+
+    total_return_df = holdings_summary.merge(
+        dividends_summary,
+        on=["Portfolio", "Ticker"],
+        how="left",
+    ).merge(
+        realised_pl_summary,
+        on=["Portfolio", "Ticker"],
+        how="left",
+    )
+
+    total_return_df["Total Dividends"] = total_return_df["Total Dividends"].fillna(0.0)
+    total_return_df["Realised P/L (base)"] = total_return_df[
+        "Realised P/L (base)"
+    ].fillna(0.0)
+    total_return_df["Total Cost (base)"] = total_return_df["Net Cashflow (base)"]
+    total_return_df["Total Return (base)"] = (
+        total_return_df["Unrealised P/L (base)"]
+        + total_return_df["Realised P/L (base)"]
+        + total_return_df["Total Dividends"]
+    )
+
+    total_return_df["Total Return % (base)"] = np.where(
+        total_return_df["Total Cost (base)"] != 0,
+        total_return_df["Total Return (base)"] / total_return_df["Total Cost (base)"],
+        np.nan,
+    )
+
+
+    numeric_cols = [
+        "Total Cost (base)",
+        "Unrealised P/L (base)",
+        "Realised P/L (base)",
+        "Total Dividends",
+        "Total Return (base)",
+        "Total Return % (base)",
+    ]
+    total_return_df[numeric_cols] = total_return_df[numeric_cols].round(4)
+
+    total_return_df = total_return_df.sort_values(
+        ["Portfolio", "Total Return (base)", "Ticker"],
+        ascending=[True, False, True],
+    ).reset_index(drop=True)
+
+    return total_return_df
