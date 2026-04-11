@@ -127,3 +127,5 @@ class MoneyTalks:
                     df.to_excel(writer, sheet_name=sheet_name, index=False)
                     self.logger.info(f"Saved {sheet_name} sheet to Excel.")
         self.logger.info(f"All sheets saved successfully to {self.excel_filepath}.")
+
+mt = MoneyTalks()
