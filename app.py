@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 from src.db import SQLiteDB
 from src.helper import (
     generate_holdings,
@@ -10,6 +9,12 @@ from src.helper import (
     generate_total_return_sheet,
     generate_dividend_recovery_sheet
 )
+
+from tabs.overview import render_overview
+from tabs.holdings import render_holdings
+from tabs.dividends import render_dividends
+from tabs.returns import render_returns
+from tabs.transactions import render_transactions
 
 st.set_page_config(page_title="Money Talks Dashboard", layout="wide")
 st.title("Money Talks Dashboard")
@@ -81,106 +86,16 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 with tab1:
-    st.header("Overview")
-    if not portfolio_summary.empty:
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            st.dataframe(portfolio_summary, use_container_width=True, hide_index=True)
-            total_nw = portfolio_summary["Total_Value_Base"].sum()
-            st.metric("Total Net Worth", f"{total_nw:,.2f}")
-        
-        with col2:
-            fig = px.pie(
-                portfolio_summary, 
-                values="Total_Value_Base", 
-                names="Portfolio", 
-                title="Portfolio Breakdown by Value",
-                hole=0.4
-            )
-            st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("No portfolio summary to display.")
+    render_overview(portfolio_summary)
 
 with tab2:
-    st.header("Holdings")
-    if not holdings_df.empty:
-        st.dataframe(holdings_df, use_container_width=True, hide_index=True)
-        col1, col2 = st.columns(2)
-        with col1:
-            fig2 = px.bar(
-                holdings_df, 
-                x="Ticker", 
-                y="Unrealised P/L (base)", 
-                color="Portfolio", 
-                title="Unrealised P/L by Ticker",
-                text_auto='.2s'
-            )
-            fig2.update_traces(textfont_size=12, textangle=0, textposition="outside", cliponaxis=False)
-            st.plotly_chart(fig2, use_container_width=True)
-        
-        with col2:
-            fig3 = px.bar(
-                holdings_df, 
-                x="Ticker", 
-                y="Current Value (base)", 
-                color="Portfolio", 
-                title="Current Position Value",
-                text_auto='.2s'
-            )
-            fig3.update_traces(textfont_size=12, textangle=0, textposition="outside", cliponaxis=False)
-            st.plotly_chart(fig3, use_container_width=True)
-    else:
-        st.info("No holdings to display.")
+    render_holdings(holdings_df)
 
 with tab3:
-    st.header("Dividends")
-    if not dividends_df.empty:
-        st.dataframe(dividends_df, use_container_width=True, hide_index=True)
-        fig4 = px.bar(
-            dividends_df, 
-            x="Year", 
-            y="Total Dividends", 
-            color="Ticker", 
-            barmode="stack", 
-            title="Dividends per Year",
-            text_auto='.2s'
-        )
-        # Ensure year is displayed nicely in X-axis (not floating numbers if there's only 1 year)
-        fig4.update_layout(xaxis=dict(tick0=dividends_df["Year"].min(), dtick=1))
-        st.plotly_chart(fig4, use_container_width=True)
-        
-        st.subheader("Dividend Recovery")
-        if not dividend_recovery_df.empty:
-            st.dataframe(dividend_recovery_df, use_container_width=True, hide_index=True)
-        else:
-            st.info("No dividend recovery data available.")
-    else:
-        st.info("No dividends to display.")
+    render_dividends(dividends_df, dividend_recovery_df)
 
 with tab4:
-    st.header("Realised P/L & Total Returns")
-    st.subheader("Total Return by Ticker")
-    if not total_return_df.empty:
-        st.dataframe(total_return_df, use_container_width=True, hide_index=True)
-        fig5 = px.bar(
-            total_return_df, 
-            x="Ticker", 
-            y="Total Return (base)", 
-            color="Portfolio", 
-            title="Total Return (base) per Ticker",
-            text_auto='.2s'
-        )
-        fig5.update_traces(textfont_size=12, textangle=0, textposition="outside", cliponaxis=False)
-        st.plotly_chart(fig5, use_container_width=True)
-    else:
-        st.info("No total return data available.")
-        
-    st.subheader("Realised P/L (Sells)")
-    if not realised_pl_df.empty:
-        st.dataframe(realised_pl_df, use_container_width=True, hide_index=True)
-    else:
-        st.info("No realised P/L to display.")
+    render_returns(total_return_df, realised_pl_df)
 
 with tab5:
-    st.header("Raw Transactions")
-    st.dataframe(transactions, use_container_width=True, hide_index=True)
+    render_transactions(transactions)
