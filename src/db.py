@@ -4,17 +4,24 @@ from src.date_utils import SAVED_DATE_FORMAT
 
 DB_PATH = "portfolio.db"
 
+
 class SQLiteDB:
     def __init__(self):
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.cursor = self.conn.cursor()
 
-    def ingest_excel(self, df:pd.DataFrame, table_name: str):
+    def ingest_excel(self, df: pd.DataFrame, table_name: str):
         df.to_sql(table_name, self.conn, if_exists="replace", index=False)
         self.conn.commit()
 
     def get_table(self, table_name: str) -> pd.DataFrame:
         return pd.read_sql(f"SELECT * FROM {table_name}", self.conn)
+
+    def get_transactions(self) -> pd.DataFrame:
+        """Load transactions with SQLite rowid for updates and deletes."""
+        return pd.read_sql(
+            "SELECT rowid AS rowid, * FROM transactions", self.conn
+        )
 
     def insert_transactions_from_df(self, df: pd.DataFrame):
         """
@@ -41,7 +48,11 @@ class SQLiteDB:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    pd.to_datetime(row.get("Date")).strftime(SAVED_DATE_FORMAT) if pd.notna(row.get("Date")) else None,
+                    (
+                        pd.to_datetime(row.get("Date")).strftime(SAVED_DATE_FORMAT)
+                        if pd.notna(row.get("Date"))
+                        else None
+                    ),
                     row.get("Portfolio"),
                     row.get("Ticker"),
                     row.get("Asset Name"),
@@ -56,6 +67,31 @@ class SQLiteDB:
                 ),
             )
 
+        self.conn.commit()
+
+    def delete_transaction(self, rowid: int):
+        self.cursor.execute("DELETE FROM transactions WHERE rowid = ?", (rowid,))
+        self.conn.commit()
+
+    def update_transaction(self, rowid: int, updates: dict):
+        if not updates:
+            return
+
+        columns = []
+        values = []
+        for key, value in updates.items():
+            if key == "Date" and pd.notna(value):
+                value = pd.to_datetime(value).strftime(SAVED_DATE_FORMAT)
+            if key == "Year" and pd.notna(value):
+                value = int(value)
+            columns.append(f'"{key}"' if " " in key else key)
+            values.append(value)
+
+        set_clause = ", ".join(f"{col} = ?" for col in columns)
+        self.cursor.execute(
+            f"UPDATE transactions SET {set_clause} WHERE rowid = ?",
+            (*values, rowid),
+        )
         self.conn.commit()
 
     def close(self):

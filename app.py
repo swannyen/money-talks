@@ -22,7 +22,7 @@ st.title("Money Talks Dashboard")
 @st.cache_data
 def load_data():
     db = SQLiteDB()
-    df = db.get_table("transactions")
+    df = db.get_transactions()
     db.close()
     return df
 
