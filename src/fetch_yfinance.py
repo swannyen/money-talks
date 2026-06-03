@@ -1,3 +1,4 @@
+from tqdm import tqdm
 import yfinance as yf
 
 
@@ -9,33 +10,26 @@ def get_current_prices(tickers, digits=5) -> dict:
     if isinstance(tickers, str):
         tickers = [tickers]
 
-    # Download live data for all tickers at once
-    data = yf.download(
-        tickers=" ".join(tickers),
-        period="1d",
-        interval="1m",
-        progress=False,
-        group_by="ticker",
-        auto_adjust=False,
-        prepost=False,
-    )
-
     prices = {}
-
-    # Handle single-ticker and multi-ticker shapes
-    for ticker in tickers:
-        try:
-            if len(tickers) == 1:
-                # For a single ticker, columns are not grouped by ticker
-                last_valid_row = data["Close"].dropna().iloc[-1]
-            else:
-                # For multiple tickers, columns are MultiIndex (ticker, field)
-                last_valid_row = data[ticker]["Close"].dropna().iloc[-1]
-
-            prices[ticker] = round(float(last_valid_row), digits)
-        except Exception as e:
-            # If something goes wrong for a ticker, set it to None
-            prices[ticker] = None
-            print(f"Could not get price for {ticker}: {e}")
-
+    for ticker in tqdm(tickers, desc="fetching ticker prices"):
+        ticker_info = yf.Ticker(ticker).info
+        current_price = ticker_info.get("Open")
+        if not current_price:
+            current_price = ticker_info.get("previousClose")
+        if not current_price:
+            print(f"Could not get price for {ticker}")
+            continue
+        prices[ticker] = round(current_price, digits)
     return prices
+
+
+def get_ticker_info(ticker):
+    info = yf.Ticker(ticker)
+    asset_name = info.info.get("displayName")
+    if not asset_name:
+        asset_name = info.info["longName"]
+    ticker_info = {
+        "Asset Name": asset_name,
+        "Asset Class": info.info["typeDisp"],
+    }
+    return ticker_info

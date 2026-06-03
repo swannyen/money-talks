@@ -34,10 +34,19 @@ def get_fx_rates(base_currency: str, currencies: List[str]) -> Dict[str, float]:
     return data["rates"]
 
 
-def convert_amount(amount, rate) -> float:
+def convert_amount_from_base(amount_base, rate) -> float:
     """
     Convert an amount using a given FX rate.
 
     amount_in_base * rate = amount_in_target
     """
-    return amount * rate
+    return amount_base * rate
+
+
+def convert_amount_to_base(amount, rate) -> float:
+    """
+    Convert an amount using a given FX rate.
+
+    amount_in_base * rate = amount_in_target
+    """
+    return amount / rate

@@ -1,13 +1,14 @@
 from src.fetch_yfinance import get_current_prices
-from src.fetch_fx_rates import get_fx_rates, convert_amount
+from src.fetch_fx_rates import get_fx_rates, convert_amount_from_base
 
 # example usage
+
 
 def main():
     tickers = ["JYEU.SI", "MSFT", "GOOG", "TSLA"]
     current_prices = get_current_prices(tickers)
     for tkr, price in current_prices.items():
-        print(f"{tkr}: {price}")   
+        print(f"{tkr}: {price}")
 
     base = "HKD"
     targets = ["SGD", "USD", "EUR"]
@@ -23,9 +24,9 @@ def main():
 
     print("\nConverted amounts:")
     for cur, r in rates.items():
-        converted = convert_amount(amount_hkd, r)
+        converted = convert_amount_from_base(amount_hkd, r)
         print(f"  {amount_hkd} {base} = {converted:.2f} {cur}")
 
 
 if __name__ == "__main__":
-    main() 
+    main()
