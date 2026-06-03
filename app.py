@@ -15,8 +15,14 @@ from tabs.holdings import render_holdings
 from tabs.dividends import render_dividends
 from tabs.returns import render_returns
 from tabs.transactions import render_transactions
+from src.auth import require_login, render_logout_button
 
 st.set_page_config(page_title="Money Talks Dashboard", layout="wide")
+
+if not require_login():
+    st.stop()
+
+render_logout_button()
 st.title("Money Talks Dashboard")
 
 @st.cache_data
@@ -98,4 +104,4 @@ with tab4:
     render_returns(total_return_df, realised_pl_df)
 
 with tab5:
-    render_transactions(transactions)
+    render_transactions(transactions, holdings_df)

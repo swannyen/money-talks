@@ -29,14 +29,14 @@ def build_updates(orig_row: pd.Series, new_row: pd.Series, columns: list[str]) -
     return updates
 
 
-def render_transactions(transactions_df: pd.DataFrame):
+def render_transactions(transactions_df: pd.DataFrame, holdings_df: pd.DataFrame):
     col1, col2 = st.columns([0.8, 0.2])
     with col1:
         st.header("Raw Transactions")
     with col2:
         st.write("")
         if st.button("Add Transaction", width="stretch"):
-            add_transaction_dialog()
+            add_transaction_dialog(holdings_df)
 
     st.caption(
         "Edit cells to change the rows, click on **Apply Changes** to save them, "

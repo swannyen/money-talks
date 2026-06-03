@@ -30,6 +30,6 @@ def get_ticker_info(ticker):
         asset_name = info.info["longName"]
     ticker_info = {
         "Asset Name": asset_name,
-        "Asset Class": info.info["typeDisp"],
+        "Asset Class": info.info.get("typeDisp", ""),
     }
     return ticker_info
