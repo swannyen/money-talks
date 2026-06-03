@@ -8,30 +8,7 @@ from src.models.actions import AcceptedActions
 from src.helper import create_new_transaction
 
 
-def _held_tickers(holdings_df: pd.DataFrame, portfolio: str) -> list[str]:
-    if holdings_df.empty:
-        return []
-    held = holdings_df[
-        (holdings_df["Portfolio"] == portfolio)
-        & (holdings_df["Net Quantity"] > 0)
-    ]
-    return sorted(held["Ticker"].dropna().astype(str).str.strip().unique().tolist())
-
-
-def _held_quantity(holdings_df: pd.DataFrame, portfolio: str, ticker: str) -> float:
-    if holdings_df.empty or not ticker:
-        return 0.0
-    held = holdings_df[
-        (holdings_df["Portfolio"] == portfolio)
-        & (holdings_df["Ticker"].astype(str).str.strip() == ticker.strip())
-        & (holdings_df["Net Quantity"] > 0)
-    ]
-    if held.empty:
-        return 0.0
-    return float(held["Net Quantity"].sum())
-
-
-@st.dialog("Add Transaction")
+@st.dialog("Add Transaction", width="large")
 def add_transaction_dialog(holdings_df: pd.DataFrame):
     date_col, portfolio_col, action_col = st.columns(3)
 
@@ -42,16 +19,28 @@ def add_transaction_dialog(holdings_df: pd.DataFrame):
     with action_col:
         action = st.selectbox("Action", get_args(AcceptedActions))
 
+    open_positions = pd.DataFrame()
+    if not holdings_df.empty:
+        open_positions = holdings_df[
+            (holdings_df["Portfolio"] == portfolio)
+            & (holdings_df["Net Quantity"] > 0)
+        ]
+
     default_quantity = 0.0
     ticker_col, currency_col, quantity_col = st.columns(3)
 
     ticker = ""
     with ticker_col:
         if action == "DIVIDEND":
-            tickers = _held_tickers(holdings_df, portfolio)
+            tickers = sorted(
+                open_positions["Ticker"].dropna().astype(str).str.strip().unique().tolist()
+            )
             if tickers:
                 ticker = st.selectbox("Ticker", tickers)
-                default_quantity = _held_quantity(holdings_df, portfolio, ticker)
+                ticker_rows = open_positions[
+                    open_positions["Ticker"].astype(str).str.strip() == ticker.strip()
+                ]
+                default_quantity = float(ticker_rows["Net Quantity"].sum())
             else:
                 st.selectbox("Ticker", ["No open positions"], disabled=True)
         else:
@@ -83,9 +72,7 @@ def add_transaction_dialog(holdings_df: pd.DataFrame):
             action=action,
             value=float(value),
         )
-        new_transaction_df = create_new_transaction(transaction)
-        db.insert_transactions_from_df(new_transaction_df)
+        db.insert_transactions_from_df(create_new_transaction(transaction))
         st.success("Transaction saved successfully!")
-
         st.cache_data.clear()
         st.rerun()

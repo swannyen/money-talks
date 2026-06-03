@@ -4,31 +4,6 @@ from src.components.add_transaction import add_transaction_dialog
 from src.db import db
 
 
-def is_values_differ(dataframe_a: pd.DataFrame, dataframe_b: pd.DataFrame) -> bool:
-    if pd.isna(dataframe_a) and pd.isna(dataframe_b):
-        return False
-    if pd.isna(dataframe_a) or pd.isna(dataframe_b):
-        return True
-    try:
-        formatted_dataframe_a = pd.to_datetime(dataframe_a, errors="coerce")
-        formatted_dataframe_b = pd.to_datetime(dataframe_b, errors="coerce")
-        if not pd.isna(formatted_dataframe_a) and not pd.isna(formatted_dataframe_b):
-            return (
-                formatted_dataframe_a.normalize() != formatted_dataframe_b.normalize()
-            )
-    except (TypeError, ValueError):
-        pass
-    return dataframe_a != dataframe_b
-
-
-def build_updates(orig_row: pd.Series, new_row: pd.Series, columns: list[str]) -> dict:
-    updates = {}
-    for col in columns:
-        if is_values_differ(orig_row[col], new_row[col]):
-            updates[col] = new_row[col]
-    return updates
-
-
 def render_transactions(transactions_df: pd.DataFrame, holdings_df: pd.DataFrame):
     col1, col2 = st.columns([0.8, 0.2])
     with col1:
@@ -56,8 +31,7 @@ def render_transactions(transactions_df: pd.DataFrame, holdings_df: pd.DataFrame
     no_id = edited[edited["id"].isna()]
     if not no_id.empty:
         other_cols = [c for c in edited.columns if c != "id"]
-        stray = no_id[other_cols].notna().any(axis=1).any()
-        if stray:
+        if no_id[other_cols].notna().any(axis=1).any():
             st.warning(
                 "Rows without an ID are not saved. Use **Add Transaction** for new rows, "
                 "or clear extra blank rows."
@@ -96,11 +70,30 @@ def render_transactions(transactions_df: pd.DataFrame, holdings_df: pd.DataFrame
             transaction_id = int(transaction_id)
             if transaction_id not in new_by.index:
                 continue
-            updates = build_updates(
-                orig_by.loc[transaction_id, editable_cols],
-                new_by.loc[transaction_id, editable_cols],
-                editable_cols,
-            )
+
+            updates = {}
+            for col in editable_cols:
+                before = orig_by.loc[transaction_id, col]
+                after = new_by.loc[transaction_id, col]
+
+                if pd.isna(before) and pd.isna(after):
+                    continue
+                if pd.isna(before) or pd.isna(after):
+                    updates[col] = after
+                    continue
+
+                changed = before != after
+                try:
+                    dt_before = pd.to_datetime(before, errors="coerce")
+                    dt_after = pd.to_datetime(after, errors="coerce")
+                    if not pd.isna(dt_before) and not pd.isna(dt_after):
+                        changed = dt_before.normalize() != dt_after.normalize()
+                except (TypeError, ValueError):
+                    pass
+
+                if changed:
+                    updates[col] = after
+
             if updates:
                 db.update_transaction(transaction_id, updates)
                 updated += 1

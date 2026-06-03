@@ -74,29 +74,6 @@ def get_database_url() -> str:
     return url
 
 
-def _is_supabase_direct_host(url: str) -> bool:
-    host = urlparse(url).hostname or ""
-    return host.startswith("db.") and host.endswith(".supabase.co")
-
-
-def _is_transaction_pooler(url: str) -> bool:
-    return urlparse(url).port == 6543
-
-
-def create_db_engine() -> Engine:
-    url = get_database_url()
-    engine_kwargs: dict = {
-        "pool_pre_ping": True,
-        "connect_args": {"connect_timeout": 10},
-    }
-
-    # Supabase transaction pooler (port 6543): short-lived connections, IPv4-safe.
-    if _is_transaction_pooler(url):
-        engine_kwargs["poolclass"] = NullPool
-
-    return create_engine(url, **engine_kwargs)
-
-
 def _map_db_df_to_app(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return pd.DataFrame(columns=["id", *APP_TO_DB_COLUMNS.keys()])
@@ -106,37 +83,43 @@ def _map_db_df_to_app(df: pd.DataFrame) -> pd.DataFrame:
     return mapped[[col for col in ordered_cols if col in mapped.columns]]
 
 
-def _prepare_transaction_df_for_db(df: pd.DataFrame) -> pd.DataFrame:
-    renamed = df.rename(columns=APP_TO_DB_COLUMNS)
-    db_cols = list(APP_TO_DB_COLUMNS.values())
-    return renamed[[col for col in db_cols if col in renamed.columns]]
-
-
 class PostgresDB:
     def __init__(self):
         self._engine: Engine | None = None
 
     @property
     def engine(self) -> Engine:
-        if self._engine is None:
-            url = get_database_url()
-            if _is_supabase_direct_host(url):
-                raise RuntimeError(
-                    "DATABASE_URL uses Supabase direct host (db.*.supabase.co), which is "
-                    "IPv6-only on many projects. Use the IPv4 pooler string from "
-                    "Supabase → Project Settings → Database → Connection pooling "
-                    "(e.g. aws-1-ap-southeast-1.pooler.supabase.com:6543, user "
-                    "postgres.<project-ref>)."
-                )
-            self._engine = create_db_engine()
+        if self._engine is not None:
+            return self._engine
+
+        url = get_database_url()
+        host = urlparse(url).hostname or ""
+        if host.startswith("db.") and host.endswith(".supabase.co"):
+            raise RuntimeError(
+                "DATABASE_URL uses Supabase direct host (db.*.supabase.co), which is "
+                "IPv6-only on many projects. Use the IPv4 pooler string from "
+                "Supabase → Project Settings → Database → Connection pooling "
+                "(e.g. aws-1-ap-southeast-1.pooler.supabase.com:6543, user "
+                "postgres.<project-ref>)."
+            )
+
+        engine_kwargs: dict = {
+            "pool_pre_ping": True,
+            "connect_args": {"connect_timeout": 10},
+        }
+        if urlparse(url).port == 6543:
+            engine_kwargs["poolclass"] = NullPool
+
+        self._engine = create_engine(url, **engine_kwargs)
         return self._engine
 
     def ingest_excel(self, df: pd.DataFrame, table_name: str):
-        payload = (
-            _prepare_transaction_df_for_db(df)
-            if table_name == "transactions"
-            else df
-        )
+        if table_name == "transactions":
+            renamed = df.rename(columns=APP_TO_DB_COLUMNS)
+            db_cols = list(APP_TO_DB_COLUMNS.values())
+            payload = renamed[[col for col in db_cols if col in renamed.columns]]
+        else:
+            payload = df
         payload.to_sql(table_name, self.engine, if_exists="replace", index=False)
 
     def get_table(self, table_name: str) -> pd.DataFrame:
@@ -153,32 +136,12 @@ class PostgresDB:
         insert_sql = text(
             """
             INSERT INTO transactions (
-                date,
-                portfolio,
-                ticker,
-                asset_name,
-                asset_class,
-                currency,
-                action,
-                quantity,
-                value,
-                value_base,
-                price_per_unit,
-                year
+                date, portfolio, ticker, asset_name, asset_class, currency,
+                action, quantity, value, value_base, price_per_unit, year
             )
             VALUES (
-                :date,
-                :portfolio,
-                :ticker,
-                :asset_name,
-                :asset_class,
-                :currency,
-                :action,
-                :quantity,
-                :value,
-                :value_base,
-                :price_per_unit,
-                :year
+                :date, :portfolio, :ticker, :asset_name, :asset_class, :currency,
+                :action, :quantity, :value, :value_base, :price_per_unit, :year
             )
             """
         )
@@ -243,9 +206,8 @@ class PostgresDB:
             if key == "Quantity" and pd.notna(value):
                 value = int(value)
 
-            param_name = db_col
-            set_parts.append(f"{db_col} = :{param_name}")
-            params[param_name] = value
+            set_parts.append(f"{db_col} = :{db_col}")
+            params[db_col] = value
 
         if not set_parts:
             return
@@ -263,6 +225,4 @@ class PostgresDB:
 
 
 db = PostgresDB()
-
-# Backwards compatibility for notebooks/scripts.
-SQLiteDB = PostgresDB
+SQLiteDB = PostgresDB  # notebooks/scripts

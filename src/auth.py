@@ -4,24 +4,16 @@ import secrets
 import streamlit as st
 
 
-def _get_app_password() -> str | None:
-    if "APP_PASSWORD" in st.secrets:
-        return str(st.secrets["APP_PASSWORD"])
-    env_password = os.getenv("APP_PASSWORD")
-    if env_password:
-        return env_password
-    return None
-
-
 def require_login() -> bool:
-    """
-    Show a login form until the user enters the correct password.
-    Returns True when the app may proceed, False when login UI is shown.
-    """
+    """Show a login form until the user enters the correct password."""
     if st.session_state.get("authenticated"):
         return True
 
-    expected = _get_app_password()
+    if "APP_PASSWORD" in st.secrets:
+        expected = str(st.secrets["APP_PASSWORD"])
+    else:
+        expected = os.getenv("APP_PASSWORD")
+
     if not expected:
         st.error(
             "This app is locked but no password is configured. "
