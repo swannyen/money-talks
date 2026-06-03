@@ -1,2 +1,4 @@
 *.xlsx
 src/__pycache__
+.streamlit/secrets.toml
+*.pyc
