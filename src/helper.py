@@ -62,7 +62,9 @@ def prepare_transactions_df(transactions: pd.DataFrame) -> pd.DataFrame:
     df["Value (base)"] = pd.to_numeric(df["Value (base)"], errors="coerce")
 
     # Sort for stable WAC calc
-    df = df.sort_values(["Portfolio", "Ticker", "Currency", "Date"]).reset_index(drop=True)
+    df = df.sort_values(["Portfolio", "Ticker", "Currency", "Date"]).reset_index(
+        drop=True
+    )
     return df
 
 
@@ -110,7 +112,8 @@ def process_transactions_wac(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFra
                 realised_pl = val_base - cost_of_shares_sold
                 realised_pl_pct = (
                     realised_pl / cost_of_shares_sold
-                    if cost_of_shares_sold > 0 else np.nan
+                    if cost_of_shares_sold > 0
+                    else np.nan
                 )
 
                 realised_rows.append(
@@ -430,6 +433,7 @@ def generate_dividend_recovery_sheet(
 
     return recovery_df
 
+
 def finalise_realised_pl(realised_pl: pd.DataFrame) -> pd.DataFrame:
     if realised_pl.empty:
         return realised_pl
@@ -447,9 +451,9 @@ def finalise_realised_pl(realised_pl: pd.DataFrame) -> pd.DataFrame:
 
     realised_pl[numeric_cols] = realised_pl[numeric_cols].round(4)
 
-    realised_pl = realised_pl.sort_values(
-        ["Date", "Portfolio", "Ticker"]
-    ).reset_index(drop=True)
+    realised_pl = realised_pl.sort_values(["Date", "Portfolio", "Ticker"]).reset_index(
+        drop=True
+    )
 
     return realised_pl
 
@@ -463,7 +467,10 @@ def generate_realised_pl_sheet(df: pd.DataFrame) -> pd.DataFrame:
     realised_pl = finalise_realised_pl(realised_pl)
     return realised_pl
 
-def generate_total_return_sheet(holdings_df: pd.DataFrame, realised_pl_df: pd.DataFrame, dividends_df: pd.DataFrame) -> pd.DataFrame:
+
+def generate_total_return_sheet(
+    holdings_df: pd.DataFrame, realised_pl_df: pd.DataFrame, dividends_df: pd.DataFrame
+) -> pd.DataFrame:
     """
     using holdings, realised P/L and dividends,
     Generate total return sheet by combining realised P/L and dividends.
@@ -483,9 +490,9 @@ def generate_total_return_sheet(holdings_df: pd.DataFrame, realised_pl_df: pd.Da
     ]
 
     # Aggregate dividends per portfolio + ticker
-    dividends_summary = dividends_df.groupby(
-        ["Portfolio", "Ticker"], as_index=False
-    )["Total Dividends"].sum()
+    dividends_summary = dividends_df.groupby(["Portfolio", "Ticker"], as_index=False)[
+        "Total Dividends"
+    ].sum()
 
     # Aggregate realised P/L per portfolio + ticker
     realised_pl_summary = realised_pl_df.groupby(
@@ -518,7 +525,6 @@ def generate_total_return_sheet(holdings_df: pd.DataFrame, realised_pl_df: pd.Da
         total_return_df["Total Return (base)"] / total_return_df["Total Cost (base)"],
         np.nan,
     )
-
 
     numeric_cols = [
         "Total Cost (base)",

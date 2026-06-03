@@ -1,5 +1,7 @@
-import streamlit as st
 import pandas as pd
+import streamlit as st
+
+from src.auth import require_login, render_logout_button
 from src.db import PostgresDB
 from src.helper import (
     generate_dividends,
@@ -9,7 +11,6 @@ from src.helper import (
     generate_realised_pl_sheet,
     generate_total_return_sheet,
 )
-from src.auth import require_login, render_logout_button
 from tabs.dividends import render_dividends
 from tabs.holdings import render_holdings
 from tabs.overview import render_overview
@@ -35,44 +36,35 @@ def load_transactions() -> pd.DataFrame:
 
 
 @st.cache_data
-def build_portfolio_data(transactions: pd.DataFrame):
-    holdings_df = generate_holdings(transactions)
-    dividends_df = generate_dividends(transactions)
-    portfolio_summary = generate_portfolio_summary(holdings_df)
+def build_portfolio_data(transactions_df: pd.DataFrame):
+    holdings = generate_holdings(transactions_df)
+    dividends = generate_dividends(transactions_df)
+    summary = generate_portfolio_summary(holdings)
 
     try:
-        realised_pl_df = generate_realised_pl_sheet(transactions)
+        realised_pl = generate_realised_pl_sheet(transactions_df)
     except Exception:
-        realised_pl_df = pd.DataFrame()
+        realised_pl = pd.DataFrame()
 
     try:
-        total_return_df = generate_total_return_sheet(
-            holdings_df, realised_pl_df, dividends_df
-        )
+        total_return = generate_total_return_sheet(holdings, realised_pl, dividends)
     except Exception:
-        total_return_df = pd.DataFrame()
+        total_return = pd.DataFrame()
 
     try:
-        dividend_recovery_df = generate_dividend_recovery_sheet(
-            holdings_df, dividends_df
-        )
+        dividend_recovery = generate_dividend_recovery_sheet(holdings, dividends)
     except Exception:
-        dividend_recovery_df = pd.DataFrame()
+        dividend_recovery = pd.DataFrame()
 
-    return (
-        holdings_df,
-        dividends_df,
-        portfolio_summary,
-        realised_pl_df,
-        total_return_df,
-        dividend_recovery_df,
-    )
+    return holdings, dividends, summary, realised_pl, total_return, dividend_recovery
 
 
 transactions = load_transactions()
 
 if transactions.empty:
-    st.warning("No transactions found in the database. Please ingest some transactions.")
+    st.warning(
+        "No transactions found in the database. Please ingest some transactions."
+    )
     st.stop()
 
 with st.spinner("Calculating portfolio data and fetching current prices..."):

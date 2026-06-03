@@ -1,11 +1,13 @@
-import streamlit as st
-import pandas as pd
-from typing import get_args
 from datetime import date
+from typing import get_args
+
+import pandas as pd
+import streamlit as st
+
 from src.db import db
-from src.models.transaction import Transaction, Currency, Portfolio
-from src.models.actions import AcceptedActions
 from src.helper import create_new_transaction
+from src.models.actions import AcceptedActions
+from src.models.transaction import Currency, Portfolio, Transaction
 
 
 @st.dialog("Add Transaction", width="large")
@@ -22,8 +24,7 @@ def add_transaction_dialog(holdings_df: pd.DataFrame):
     open_positions = pd.DataFrame()
     if not holdings_df.empty:
         open_positions = holdings_df[
-            (holdings_df["Portfolio"] == portfolio)
-            & (holdings_df["Net Quantity"] > 0)
+            (holdings_df["Portfolio"] == portfolio) & (holdings_df["Net Quantity"] > 0)
         ]
 
     default_quantity = 0.0
@@ -33,7 +34,12 @@ def add_transaction_dialog(holdings_df: pd.DataFrame):
     with ticker_col:
         if action == "DIVIDEND":
             tickers = sorted(
-                open_positions["Ticker"].dropna().astype(str).str.strip().unique().tolist()
+                open_positions["Ticker"]
+                .dropna()
+                .astype(str)
+                .str.strip()
+                .unique()
+                .tolist()
             )
             if tickers:
                 ticker = st.selectbox("Ticker", tickers)

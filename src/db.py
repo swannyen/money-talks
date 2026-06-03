@@ -2,6 +2,7 @@ import os
 from urllib.parse import urlparse
 
 import pandas as pd
+import streamlit as st
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
@@ -50,11 +51,9 @@ def get_database_url() -> str:
     url = os.getenv("DATABASE_URL")
 
     try:
-        import streamlit as st
-
         if "DATABASE_URL" in st.secrets:
             url = str(st.secrets["DATABASE_URL"])
-    except Exception:
+    except (AttributeError, RuntimeError):
         pass
 
     if not url:
@@ -133,8 +132,7 @@ class PostgresDB:
         return _map_db_df_to_app(df)
 
     def insert_transactions_from_df(self, df: pd.DataFrame):
-        insert_sql = text(
-            """
+        insert_sql = text("""
             INSERT INTO transactions (
                 date, portfolio, ticker, asset_name, asset_class, currency,
                 action, quantity, value, value_base, price_per_unit, year
@@ -143,8 +141,7 @@ class PostgresDB:
                 :date, :portfolio, :ticker, :asset_name, :asset_class, :currency,
                 :action, :quantity, :value, :value_base, :price_per_unit, :year
             )
-            """
-        )
+            """)
 
         with self.engine.begin() as conn:
             for _, row in df.iterrows():
@@ -171,9 +168,7 @@ class PostgresDB:
                         "value_base": row.get("Value (base)"),
                         "price_per_unit": row.get("Price per Unit"),
                         "year": (
-                            int(row.get("Year"))
-                            if pd.notna(row.get("Year"))
-                            else None
+                            int(row.get("Year")) if pd.notna(row.get("Year")) else None
                         ),
                     },
                 )
@@ -212,9 +207,7 @@ class PostgresDB:
         if not set_parts:
             return
 
-        sql = text(
-            f"UPDATE transactions SET {', '.join(set_parts)} WHERE id = :id"
-        )
+        sql = text(f"UPDATE transactions SET {', '.join(set_parts)} WHERE id = :id")
         with self.engine.begin() as conn:
             conn.execute(sql, params)
 

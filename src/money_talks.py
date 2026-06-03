@@ -1,16 +1,18 @@
+import logging
+
 import pandas as pd
-from logging import Logger
-from src.models.transaction import Transaction
+
 from src.helper import (
     create_new_transaction,
-    generate_holdings,
+    generate_dividend_recovery_sheet,
     generate_dividends,
+    generate_holdings,
     generate_portfolio_dividends,
     generate_portfolio_summary,
-    generate_dividend_recovery_sheet,
     generate_realised_pl_sheet,
-    generate_total_return_sheet
+    generate_total_return_sheet,
 )
+from src.models.transaction import Transaction
 
 
 class MoneyTalks:
@@ -26,7 +28,7 @@ class MoneyTalks:
         self.realised_pl_sheet = "Realised PL"
         self.total_return_sheet = "Total Return"
         self.excel_filepath = excel_filepath
-        self.logger = Logger("MoneyTalks Pipeline")
+        self.logger = logging.getLogger("MoneyTalks Pipeline")
         self.transaction_df = pd.read_excel(
             self.excel_filepath, sheet_name=self.transactions_sheet
         )
@@ -45,9 +47,9 @@ class MoneyTalks:
                 [self.transaction_df, new_transaction_df], ignore_index=True
             )
             self.transaction_df = updated_transactions
-            self.logger.info(f"Transaction added successfully: {transaction}")
+            self.logger.info("Transaction added successfully: %s", transaction)
         except ValueError as error:
-            self.logger.error(f"Error creating transaction: {error}")
+            self.logger.error("Error creating transaction: %s", error)
             raise error
 
     def get_holdings_sheet(self):
@@ -109,7 +111,7 @@ class MoneyTalks:
         )
         self.logger.info("Total Return sheet generated successfully.")
         return self.total_return
-    
+
     def save_sheets(self):
         sheet_df_dict = {
             self.transactions_sheet: self.transaction_df,
@@ -119,13 +121,14 @@ class MoneyTalks:
             self.portfolio_summary_sheet: self.portfolio_summary,
             self.dividend_recovery_sheet: self.recovery_summary,
             self.realised_pl_sheet: self.realised_pl,
-            self.total_return_sheet: self.total_return
+            self.total_return_sheet: self.total_return,
         }
         with pd.ExcelWriter(self.excel_filepath) as writer:
             for sheet_name, df in sheet_df_dict.items():
                 if df is not None:
                     df.to_excel(writer, sheet_name=sheet_name, index=False)
-                    self.logger.info(f"Saved {sheet_name} sheet to Excel.")
-        self.logger.info(f"All sheets saved successfully to {self.excel_filepath}.")
+                    self.logger.info("Saved %s sheet to Excel.", sheet_name)
+        self.logger.info("All sheets saved successfully to %s.", self.excel_filepath)
+
 
 mt = MoneyTalks()
