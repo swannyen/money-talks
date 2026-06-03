@@ -85,7 +85,7 @@ def add_transaction_dialog(holdings_df: pd.DataFrame):
         )
         new_transaction_df = create_new_transaction(transaction)
         db.insert_transactions_from_df(new_transaction_df)
-        st.success("Transaction saved successfully into portfolio.db!")
+        st.success("Transaction saved successfully!")
 
         st.cache_data.clear()
         st.rerun()

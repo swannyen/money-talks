@@ -43,9 +43,7 @@ def render_transactions(transactions_df: pd.DataFrame, holdings_df: pd.DataFrame
         "or remove a row to delete it."
     )
 
-    # rowid stays in the dataframe for DB updates but is omitted from column_order so
-    # it is hidden by default (users can still show it from the table column menu).
-    visible_cols = [c for c in transactions_df.columns if c != "rowid"]
+    visible_cols = [c for c in transactions_df.columns if c != "id"]
     edited = st.data_editor(
         transactions_df,
         width="stretch",
@@ -55,56 +53,56 @@ def render_transactions(transactions_df: pd.DataFrame, holdings_df: pd.DataFrame
         key="transactions_data_editor",
     )
 
-    no_rid = edited[edited["rowid"].isna()]
-    if not no_rid.empty:
-        other_cols = [c for c in edited.columns if c != "rowid"]
-        stray = no_rid[other_cols].notna().any(axis=1).any()
+    no_id = edited[edited["id"].isna()]
+    if not no_id.empty:
+        other_cols = [c for c in edited.columns if c != "id"]
+        stray = no_id[other_cols].notna().any(axis=1).any()
         if stray:
             st.warning(
-                "Rows without a Row ID are not saved. Use **Add Transaction** for new rows, "
+                "Rows without an ID are not saved. Use **Add Transaction** for new rows, "
                 "or clear extra blank rows."
             )
 
     if st.button("Apply changes", width="stretch", type="primary"):
         orig = transactions_df.copy()
-        orig["rowid"] = pd.to_numeric(orig["rowid"], errors="coerce").astype("Int64")
+        orig["id"] = pd.to_numeric(orig["id"], errors="coerce").astype("Int64")
         edited_work = edited.copy()
-        edited_work["rowid"] = pd.to_numeric(
-            edited_work["rowid"], errors="coerce"
-        ).astype("Int64")
+        edited_work["id"] = pd.to_numeric(edited_work["id"], errors="coerce").astype(
+            "Int64"
+        )
 
-        edited_valid = edited_work.dropna(subset=["rowid"])
-        orig_ids = set(orig["rowid"].dropna().astype(int))
-        edited_ids = set(edited_valid["rowid"].dropna().astype(int))
+        edited_valid = edited_work.dropna(subset=["id"])
+        orig_ids = set(orig["id"].dropna().astype(int))
+        edited_ids = set(edited_valid["id"].dropna().astype(int))
 
         unknown = edited_ids - orig_ids
         if unknown:
             st.error(
-                f"Unknown Row ID(s) in the table (not in database): {sorted(unknown)}. "
+                f"Unknown transaction ID(s) in the table: {sorted(unknown)}. "
                 "Reload the page and try again."
             )
             return
 
         deleted = orig_ids - edited_ids
-        for rid in deleted:
-            db.delete_transaction(int(rid))
+        for transaction_id in deleted:
+            db.delete_transaction(int(transaction_id))
 
-        editable_cols = [c for c in orig.columns if c != "rowid"]
-        orig_by = orig.set_index("rowid")
-        new_by = edited_valid.set_index("rowid")
+        editable_cols = [c for c in orig.columns if c != "id"]
+        orig_by = orig.set_index("id")
+        new_by = edited_valid.set_index("id")
 
         updated = 0
-        for rid in sorted(orig_ids & edited_ids):
-            rid = int(rid)
-            if rid not in new_by.index:
+        for transaction_id in sorted(orig_ids & edited_ids):
+            transaction_id = int(transaction_id)
+            if transaction_id not in new_by.index:
                 continue
             updates = build_updates(
-                orig_by.loc[rid, editable_cols],
-                new_by.loc[rid, editable_cols],
+                orig_by.loc[transaction_id, editable_cols],
+                new_by.loc[transaction_id, editable_cols],
                 editable_cols,
             )
             if updates:
-                db.update_transaction(rid, updates)
+                db.update_transaction(transaction_id, updates)
                 updated += 1
 
         if deleted or updated:

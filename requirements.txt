@@ -5,3 +5,5 @@ streamlit
 plotly
 openpyxl
 pydantic
+sqlalchemy
+psycopg2-binary

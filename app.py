@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from src.db import SQLiteDB
+from src.db import PostgresDB
 from src.helper import (
     generate_holdings,
     generate_dividends,
@@ -27,7 +27,7 @@ st.title("Money Talks Dashboard")
 
 @st.cache_data
 def load_data():
-    db = SQLiteDB()
+    db = PostgresDB()
     df = db.get_transactions()
     db.close()
     return df
