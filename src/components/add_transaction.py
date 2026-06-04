@@ -4,10 +4,11 @@ from typing import get_args
 import pandas as pd
 import streamlit as st
 
+from src.config import get_currencies, get_portfolios
 from src.db import db
 from src.helper import create_new_transaction
 from src.models.actions import AcceptedActions
-from src.models.transaction import Currency, Portfolio, Transaction
+from src.models.transaction import Transaction
 
 
 @st.dialog("Add Transaction", width="large")
@@ -17,7 +18,7 @@ def add_transaction_dialog(holdings_df: pd.DataFrame):
     with date_col:
         tx_date = st.date_input("Date", value=date.today())
     with portfolio_col:
-        portfolio = st.selectbox("Portfolio", get_args(Portfolio))
+        portfolio = st.selectbox("Portfolio", get_portfolios())
     with action_col:
         action = st.selectbox("Action", get_args(AcceptedActions))
 
@@ -53,7 +54,7 @@ def add_transaction_dialog(holdings_df: pd.DataFrame):
             ticker = st.text_input("Ticker", placeholder="NA for cash")
 
     with currency_col:
-        currency = st.selectbox("Currency", get_args(Currency), index=0)
+        currency = st.selectbox("Currency", get_currencies(), index=0)
     with quantity_col:
         quantity = st.number_input("Quantity", value=default_quantity, step=1.0)
 

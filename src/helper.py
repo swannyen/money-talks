@@ -1,7 +1,8 @@
-import os
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
+
+from src.config import get_base_currency
 from src.models.transaction import Transaction
 from src.models.actions import is_valid_action
 from src.fetch_fx_rates import get_fx_rates, convert_amount_to_base
@@ -10,7 +11,7 @@ from src.date_utils import get_date_year
 
 load_dotenv()
 
-BASE_CURRENCY = os.getenv("BASE_CURRENCY", "SGD")
+BASE_CURRENCY = get_base_currency()
 
 
 def create_new_transaction(transaction: Transaction) -> pd.DataFrame:
