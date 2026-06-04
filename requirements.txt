@@ -1,9 +1,21 @@
-yfinance
-pandas
-python-dotenv
+# Dashboard
 streamlit
 plotly
-openpyxl
+
+# Data & config
+numpy
+pandas
 pydantic
-sqlalchemy
+python-dotenv
+
+# Database (Supabase / Postgres)
 psycopg2-binary
+sqlalchemy
+
+# Market data & FX
+requests
+tqdm
+yfinance
+
+# Excel pipeline (legacy scripts)
+openpyxl
