@@ -23,10 +23,12 @@ Supported transaction actions: `BUY`, `SELL`, `DIVIDEND`, `DEPOSIT`, `FEE`.
 ```bash
 git clone <your-fork-or-repo-url>
 cd money-talks
+python3.12 -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Python 3.11+ recommended.
+Python **3.12+** required (`itertools.batched` and other 3.12 stdlib features are used).
 
 ### 2. Create a Supabase database
 
@@ -105,7 +107,8 @@ Log in with `APP_PASSWORD`, then add transactions from **Raw Transactions → Ad
 
 1. Push this repo to GitHub.
 2. Create a new app at [share.streamlit.io](https://share.streamlit.io) pointing at `app.py`.
-3. Under **App settings → Secrets**, paste:
+3. Python **3.12** is pinned via `runtime.txt` in the repo root.
+4. Under **App settings → Secrets**, paste:
 
 ```toml
 APP_PASSWORD = "your-strong-password"
@@ -178,8 +181,8 @@ Secrets can live in `.streamlit/secrets.toml` locally or in Streamlit Cloud secr
 app.py                      # Streamlit entry point
 tabs/                       # Dashboard tabs (overview, holdings, etc.)
 src/
+  config.py                 # App settings (env + Streamlit secrets)
   db.py                     # Supabase/Postgres access
-  config.py                 # Portfolios, currencies, base currency from env/secrets
   helper.py                 # Holdings, dividends, P/L calculations
   components/               # Add-transaction dialog
   models/                   # Transaction schema, actions, portfolios
