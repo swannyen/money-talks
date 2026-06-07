@@ -1,14 +1,11 @@
-import os
 from urllib.parse import urlparse
 
 import pandas as pd
-import streamlit as st
-from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import NullPool
 
-load_dotenv()
+from src.config import get_database_url, is_supabase_direct_host
 
 APP_TO_DB_COLUMNS = {
     "Date": "date",
@@ -47,32 +44,6 @@ ORDER BY id
 """
 
 
-def get_database_url() -> str:
-    url = os.getenv("DATABASE_URL")
-
-    try:
-        if "DATABASE_URL" in st.secrets:
-            url = str(st.secrets["DATABASE_URL"])
-    except (AttributeError, RuntimeError):
-        pass
-
-    if not url:
-        raise RuntimeError(
-            "DATABASE_URL is not set. Add it to .streamlit/secrets.toml locally "
-            "or Streamlit Cloud secrets."
-        )
-
-    if url.startswith("postgres://"):
-        url = url.replace("postgres://", "postgresql+psycopg2://", 1)
-    elif url.startswith("postgresql://") and "+psycopg2" not in url:
-        url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
-
-    if "sslmode=" not in url:
-        url += "&sslmode=require" if "?" in url else "?sslmode=require"
-
-    return url
-
-
 def _map_db_df_to_app(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return pd.DataFrame(columns=["id", *APP_TO_DB_COLUMNS.keys()])
@@ -92,8 +63,7 @@ class PostgresDB:
             return self._engine
 
         url = get_database_url()
-        host = urlparse(url).hostname or ""
-        if host.startswith("db.") and host.endswith(".supabase.co"):
+        if is_supabase_direct_host(url):
             raise RuntimeError(
                 "DATABASE_URL uses Supabase direct host (db.*.supabase.co), which is "
                 "IPv6-only on many projects. Use the IPv4 pooler string from "
@@ -218,4 +188,4 @@ class PostgresDB:
 
 
 db = PostgresDB()
-SQLiteDB = PostgresDB  # notebooks/scripts
+SQLiteDB = PostgresDB  # backwards compatibility for notebooks/scripts

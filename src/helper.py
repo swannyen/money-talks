@@ -1,15 +1,12 @@
 import numpy as np
 import pandas as pd
-from dotenv import load_dotenv
 
 from src.config import get_base_currency
-from src.models.transaction import Transaction
-from src.models.actions import is_valid_action
-from src.fetch_fx_rates import get_fx_rates, convert_amount_to_base
-from src.fetch_yfinance import get_ticker_info, get_current_prices
 from src.date_utils import get_date_year
-
-load_dotenv()
+from src.fetch_fx_rates import convert_amount_to_base, get_fx_rates
+from src.fetch_yfinance import get_current_prices, get_ticker_info
+from src.models.actions import is_valid_action
+from src.models.transaction import Transaction
 
 BASE_CURRENCY = get_base_currency()
 
@@ -177,10 +174,6 @@ def attach_current_prices_values(holdings: pd.DataFrame) -> pd.DataFrame:
 
     unique_tickers = holdings["Ticker"].dropna().unique()
     price_map = get_current_prices(unique_tickers, 3)
-    if price_map is None:
-        raise TypeError(
-            "get_ticker_price(unique_tickers) returned None; expected dict-like {ticker: price}."
-        )
 
     holdings["Current Price Per Unit"] = holdings["Ticker"].map(price_map)
     holdings["Current Value"] = (

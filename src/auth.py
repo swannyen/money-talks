@@ -1,7 +1,8 @@
-import os
 import secrets
 
 import streamlit as st
+
+from src.config import get_app_password
 
 
 def require_login() -> bool:
@@ -9,11 +10,7 @@ def require_login() -> bool:
     if st.session_state.get("authenticated"):
         return True
 
-    if "APP_PASSWORD" in st.secrets:
-        expected = str(st.secrets["APP_PASSWORD"])
-    else:
-        expected = os.getenv("APP_PASSWORD")
-
+    expected = get_app_password()
     if not expected:
         st.error(
             "This app is locked but no password is configured. "
@@ -38,7 +35,7 @@ def require_login() -> bool:
     return False
 
 
-def render_logout_button():
+def render_logout_button() -> None:
     with st.sidebar:
         if st.button("Log out", width="stretch"):
             st.session_state.authenticated = False

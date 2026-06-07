@@ -131,4 +131,7 @@ class MoneyTalks:
         self.logger.info("All sheets saved successfully to %s.", self.excel_filepath)
 
 
-mt = MoneyTalks()
+if __name__ == "__main__":
+    pipeline = MoneyTalks()
+    pipeline.get_holdings_sheet()
+    pipeline.save_sheets()
